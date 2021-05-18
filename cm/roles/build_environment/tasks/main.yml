@@ -1,0 +1,29 @@
+---
+- name: "Install nodejs"
+  apt:
+    name: nodejs
+    state: present
+
+- name: Install NPM
+  apt:
+    pkg: npm
+    state: present
+
+- name: Update node.js
+  shell: npm cache clean -f; npm install -g n; n latest
+
+- name: Download Key for mongodb
+  apt_key:
+    url: https://www.mongodb.org/static/pgp/server-4.4.asc
+    state: present
+  
+- name: Add mongo sources list
+  lineinfile: >
+    line="deb http://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse"
+    dest=/etc/apt/sources.list.d/mongodb-org-4.4.list
+    state=present
+    create=yes
+  
+- name: Install mongo
+  apt: name=mongodb-org state=latest update_cache=yes
+

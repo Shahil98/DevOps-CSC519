@@ -1,0 +1,53 @@
+- job:
+    name: iTrust
+    project-type: pipeline
+    dsl: |
+      pipeline {
+          agent any
+          stages {
+            stage('Source'){
+                steps{
+                  git branch: 'main',
+                  url: 'https://github.ncsu.edu/engr-csc326-staff/iTrust2-v8.git',
+                  credentialsId: 'kenil'
+                }
+              }
+            stage('Build and Test'){
+                steps{
+                    sh 'sudo cp /home/application.yml iTrust2/src/main/resources/application.yml'
+                    sh 'sudo service mysql start'
+                    sh 'cd iTrust2/ &&  mvn package'
+                    sh 'cp iTrust2/target/iTrust2-0.0.1-SNAPSHOT.war /bakerx/iTrust.war'
+                    sh 'cd iTrust2/ && mvn clean test integration-test checkstyle:checkstyle'
+                    recordIssues tool: java(pattern: '**/checkstyle-result.xml'), qualityGates: [[threshold: 1, type:'TOTAL', unstable:true]]
+                }
+              }
+            stage('Publish Test Coverage Report') {
+               steps {
+                 step([$class: 'JacocoPublisher',
+                      execPattern: '**/*.exec',
+                      changeBuildStatus: true,
+                      minimumInstructionCoverage: '60',
+                      maximumInstructionCoverage: '80',
+                      minimumBranchCoverage: '30',
+                      maximumBranchCoverage: '50',
+                      minimumComplexityCoverage: '30',
+                      maximumComplexityCoverage: '50',
+                      minimumLineCoverage: '30',
+                      maximumLineCoverage: '60',
+                      minimumMethodCoverage: '30',
+                      maximumMethodCoverage: '60',
+                      minimumClassCoverage: '70',
+                      maximumClassCoverage: '90'
+                      ])
+                  }
+              }
+          }
+          post {
+              always {
+                sh 'sudo mysql -e "DROP DATABASE IF EXISTS iTrust2_test"'
+                sh 'sudo dos2unix /bakerx/cm/cleanup_script.sh'
+                sh 'bash /bakerx/cm/cleanup_script.sh'
+              }
+          }
+      }

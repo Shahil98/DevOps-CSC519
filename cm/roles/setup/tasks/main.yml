@@ -1,0 +1,54 @@
+---
+- name: Copy encrypted variables
+  copy:
+    src: /bakerx/encrypted_variables.yml
+    dest: /home/
+    mode: '444'
+    
+- name: Creating a file with content
+  copy:
+    dest: /home/vagrant/ansible.cfg
+    content: |
+     [defaults]
+     host_key_checking = False
+
+- name: install openjdk
+  apt:
+    name: default-jdk
+    state: present
+
+- name: Download Key
+  apt_key:
+    url: https://pkg.jenkins.io/debian/jenkins.io.key
+    state: present
+
+- name: Updating info
+  shell: sh -c 'echo deb https://pkg.jenkins.io/debian binary/ > /etc/apt/sources.list.d/jenkins.list'
+
+- name: Run apt-get update
+  apt:
+    update_cache: yes
+
+- name: install jenkins
+  apt:
+    name: jenkins
+    state: present
+
+- name: Change Port Number
+  lineinfile: 
+    dest=/etc/default/jenkins
+    regexp=^HTTP_PORT=
+    line=HTTP_PORT=8080
+
+- name: Start Jenkins service and enable on boot
+  service:
+    name: jenkins
+    state: restarted
+    enabled: yes
+
+- name: Wait untils Jenkins web API is available
+  shell: curl --head --silent http://192.168.33.20:8080//cli/
+  register: result
+  until: result.stdout.find("403") != -1
+  retries: 30
+  delay: 10

@@ -1,0 +1,105 @@
+---
+- name: Copy encrypted variables
+  copy:
+    src: /home/encrypted_variables.yml
+    dest: /home/
+    mode: '444'
+    remote_src: no
+
+- name: include variables
+  include_vars: 
+    file: /home/encrypted_variables.yml
+
+- name: Run apt-get update
+  apt:
+    update_cache: yes
+
+- name: install openjdk
+  apt:
+    name: default-jdk
+    state: present
+
+- name: Install Maven
+  apt:
+    name: maven
+    state: present
+
+- name: Install MySQL
+  apt:
+    name: mysql-server
+    state: present
+
+- name: Install python3-mysqldb
+  apt:
+    name: python3-mysqldb
+    state: present
+
+- name: Start mysql
+  service:
+    name: mysql
+    state: started
+    enabled: True
+
+- name: Set MySQL root Password
+  mysql_user:
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: admin
+    password: "{{jenkins_password}}"
+    priv: '*.*:ALL'
+    state: present
+
+
+- name: Add tomcat group
+  group:
+    name: tomcat
+
+- name: Add "tomcat" user
+  user:
+    name: tomcat
+    group: tomcat
+    home: /usr/share/tomcat
+    createhome: no
+    system: yes
+
+- name: Download Tomcat
+  get_url:
+    url: "{{ tomcat_archive_url }}"
+    dest: "{{ tomcat_archive_dest }}"
+
+- name: Create a tomcat directory
+  file:
+    path: /usr/share/tomcat
+    state: directory
+    owner: tomcat
+    group: tomcat
+
+- name: Extract tomcat archive
+  unarchive:
+    src: "{{ tomcat_archive_dest }}"
+    dest: /usr/share/tomcat
+    owner: tomcat
+    group: tomcat
+    remote_src: yes
+    extra_opts: "--strip-components=1"
+    creates: /usr/share/tomcat/bin
+
+- name: Copy tomcat service file
+  template:
+    src: templates/tomcat.service.j2
+    dest: /etc/systemd/system/tomcat.service
+  when: ansible_service_mgr == "systemd"
+
+- name: Copy war file
+  copy:
+    src: /bakerx/iTrust.war
+    dest: /usr/share/tomcat/webapps/
+    mode: '777'
+    remote_src: no
+
+- name: Start and enable tomcat
+  service:
+    daemon_reload: yes
+    name: tomcat
+    state: started
+    enabled: yes
+  when: ansible_service_mgr == "systemd" 

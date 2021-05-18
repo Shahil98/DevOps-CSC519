@@ -1,0 +1,71 @@
+---
+- name: include variables
+  include_vars: 
+    file: /home/encrypted_variables.yml
+
+- name: Start Mongodb
+  service: name=mongod state=started
+
+- name: Create MongoDB root user
+  mongodb_user:
+    database: admin
+    name: admin
+    password: "{{ mongodb_password }}"
+    roles: readWrite
+    state: present
+
+- name: Test for line
+  shell: grep -c "^APP_PORT" /etc/environment || true
+  register: test_grep
+
+- name: Add App port
+  lineinfile:
+    dest: /etc/environment
+    line: APP_PORT=3002
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_PORT" /etc/environment || true
+  register: test_grep
+
+- name: Add App port
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_PORT=27017
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_USER" /etc/environment || true
+  register: test_grep
+
+- name: Add Mongo User
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_USER=admin
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_PASSWORD" /etc/environment || true
+  register: test_grep
+
+- name: Add MONGO_PASSWORD
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_PASSWORD="{{ mongodb_password }}"
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_IP" /etc/environment || true
+  register: test_grep
+
+- name: Add MONGO_IP
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_IP=localhost
+  when: test_grep.stdout == "0"
+
+
+- name: Start mongodb server
+  service:
+    name: mongod
+    state: started

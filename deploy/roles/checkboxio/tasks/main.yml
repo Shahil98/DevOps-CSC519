@@ -1,0 +1,171 @@
+---
+- name: Copy encrypted variables
+  copy:
+    src: /home/encrypted_variables.yml
+    dest: /home/
+    mode: '444'
+    remote_src: no
+
+- name: include variables
+  include_vars: 
+    file: /home/encrypted_variables.yml
+
+- name: "apt-get update"
+  apt:
+    update_cache: yes
+
+- name: "install nginx"
+  apt:
+    name: ['nginx', 'ssl-cert']
+    state: latest
+
+- name: "Install nodejs"
+  apt:
+    name: nodejs
+    state: present
+
+- name: Install NPM
+  apt:
+    pkg: npm
+    state: present
+
+- name: Update node.js
+  shell: npm cache clean -f; npm install -g n; n latest
+
+- name: Download Key for mongodb
+  apt_key:
+    url: https://www.mongodb.org/static/pgp/server-4.4.asc
+    state: present
+  
+- name: Add mongo sources list
+  lineinfile: >
+    line="deb http://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse"
+    dest=/etc/apt/sources.list.d/mongodb-org-4.4.list
+    state=present
+    create=yes
+
+- name: "apt-get update"
+  apt:
+    update_cache: yes  
+
+- name: Install gnupg
+  apt: name=gnupg state=latest
+
+
+- name: Install mongo
+  apt: name=mongodb-org state=latest
+
+- name: Install pip
+  apt: name=python3-pip state=latest
+
+- name: Start Mongodb
+  service: name=mongod state=started
+
+- name: Install Pymongo
+  shell: pip3 install pymongo
+
+- name: Create MongoDB root user
+  mongodb_user:
+    database: admin
+    name: admin
+    password: "{{ mongodb_password }}"
+    roles: readWrite
+    state: present
+
+- name: Test for line
+  shell: grep -c "^APP_PORT" /etc/environment || true
+  register: test_grep
+
+- name: Add App port
+  lineinfile:
+    dest: /etc/environment
+    line: APP_PORT=3002
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_PORT" /etc/environment || true
+  register: test_grep
+
+- name: Add App port
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_PORT=27017
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_USER" /etc/environment || true
+  register: test_grep
+
+- name: Add Mongo User
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_USER=admin
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_PASSWORD" /etc/environment || true
+  register: test_grep
+
+- name: Add MONGO_PASSWORD
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_PASSWORD="{{ mongodb_password }}"
+  when: test_grep.stdout == "0"
+
+- name: Test for line
+  shell: grep -c "^MONGO_IP" /etc/environment || true
+  register: test_grep
+
+- name: Add MONGO_IP
+  lineinfile:
+    dest: /etc/environment
+    line: MONGO_IP=localhost
+  when: test_grep.stdout == "0"
+
+- name: Start mongodb server
+  service:
+    name: mongod
+    state: started
+
+- name: Install pm2
+  shell: npm install pm2 -g
+
+- name: Clone checkbox.io
+  ansible.builtin.git:
+    repo: 'https://github.com/chrisparnin/checkbox.io.git'
+    dest: /var/www/checkbox.io
+    force: yes
+
+- name: Copy default file
+  copy:
+    src: /bakerx/default
+    dest: /etc/nginx/sites-available/default
+    remote_src: no
+
+- name: Create symbolic link 
+  file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link
+
+- name: Copy default file
+  copy:
+    src: /var/www/checkbox.io/local-conf/nginx.conf
+    dest: /etc/nginx/nginx.conf
+    remote_src: yes
+
+- name: Install checkbox dependencies
+  shell: cd /var/www/checkbox.io/server-side/site && npm install
+
+- name: Chmod Project
+  shell: sudo chmod -R 777 /var/www/checkbox.io/
+
+- name: Start checkbox
+  shell: 
+      chdir: /var/www/checkbox.io/server-side/site/
+      cmd: pm2 start server.js
+
+- name: Start nginx
+  service: name=nginx state=restarted
+
+

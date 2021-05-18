@@ -1,0 +1,32 @@
+---
+- name: Clone Jenkins Repo
+  ansible.builtin.git:
+    repo: 'https://opendev.org/jjb/jenkins-job-builder.git'
+    dest: /home/jenkins/
+    update: no
+
+- name: Install python dependencies via pip
+  shell: pip3 install pyyaml; pip3 install pbr; pip3 install python-jenkins; pip3 install setuptools; pip3 install ordereddict; pip3 install /home/jenkins/
+
+- name: Make directory
+  file:
+    path: /etc/jenkins_jobs
+    state: directory
+    
+- name: Copy File jenkins ini file
+  copy:
+    src: /bakerx/cm/jenkins_jobs.ini
+    dest: /etc/jenkins_jobs/jenkins_jobs.ini
+
+- name: Change Permission for sudoers
+  shell: chmod 555 /etc/sudoers
+
+- name: Test for line
+  shell: grep -c "^jenkins ALL=" /etc/sudoers || true
+  register: test_grep
+
+- name: Add line to sudoers file
+  lineinfile:
+    dest: /etc/sudoers
+    line: "jenkins ALL=(ALL) NOPASSWD: ALL"
+  when: test_grep.stdout == "0"

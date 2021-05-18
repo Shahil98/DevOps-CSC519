@@ -1,0 +1,6 @@
+---
+# see the best practices in ansible docs for how to get started with creating roles etc.: 
+- hosts: localhost
+  become: yes
+  roles:
+    - droplet-setup

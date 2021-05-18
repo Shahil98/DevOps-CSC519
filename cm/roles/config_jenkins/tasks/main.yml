@@ -1,0 +1,75 @@
+---
+- name: include variables
+  include_vars: 
+    file: /home/encrypted_variables.yml
+
+- name: Change Port Number
+  lineinfile: 
+    dest=/etc/default/jenkins
+    regexp=^HTTP_PORT=
+    line=HTTP_PORT=9000
+
+- name: read admin pwd
+  shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+  register: adminpwd
+
+- name: Unlock Jenkins
+  jenkins_script:
+    script: |
+      #!groovy
+      import jenkins.model.*
+      import hudson.security.*
+
+      def instance = Jenkins.getInstance()
+
+      println "--> creating local user 'admin'"
+
+      def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+      hudsonRealm.createAccount('admin','${user_pwd}')
+      instance.setSecurityRealm(hudsonRealm)
+      instance.save()
+
+      def strategy = new hudson.security.FullControlOnceLoggedInAuthorizationStrategy()
+      strategy.setAllowAnonymousRead(false)
+      instance.setAuthorizationStrategy(strategy)
+    args:
+      user_pwd: "{{jenkins_password}}"
+    user: admin
+    password: "{{adminpwd.stdout}}"
+
+- name: Replace
+  copy:
+    content: '{{jenkins_password}}'
+    dest: /var/lib/jenkins/secrets/initialAdminPassword
+
+- name: Start Jenkins service and enable on boot
+  service:
+    name: jenkins
+    state: restarted
+    enabled: yes
+
+- name: Wait until Jenkins web API is available
+  shell: curl --head --silent http://192.168.33.20:9000//cli/
+  register: result
+  until: result.stdout.find("403") != -1
+  retries: 30
+  delay: 10
+
+- name: Downloading Jenkins CLI
+  get_url:
+    url: http://localhost:9000/jnlpJars/jenkins-cli.jar
+    dest: /home/
+    mode: 777
+
+- name: Installing Plugins
+  shell: "java -jar /home/jenkins-cli.jar -s http://192.168.33.20:9000/ -auth admin:{{jenkins_password}} -webSocket install-plugin
+  workflow-aggregator GitHub warnings-ng credentials credentials-binding jacoco -restart"
+
+- name: Wait until Jenkins web API is available
+  shell: curl --head --silent http://192.168.33.20:9000//cli/
+  register: result
+  until: result.stdout.find("403") != -1
+  retries: 30
+  delay: 10
+
+

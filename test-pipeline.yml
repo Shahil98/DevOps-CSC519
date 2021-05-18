@@ -1,0 +1,22 @@
+- job:
+    name: checkbox.io
+    project-type: pipeline
+    dsl: |
+      node {
+        stage('Source') {
+            git "https://github.com/chrisparnin/checkbox.io"
+        }
+        stage('Setup and Install'){
+            sh 'sudo cp /bakerx/static_test.js .'
+            sh 'sudo npm install esprima && sudo npm install chalk && sudo service mongod start && cd server-side/site && npm install && sudo npm install -g pm2'
+        }
+        stage('Run server'){
+            sh 'cd server-side/site/ && pm2 start server.js'
+        }
+        stage('Static Code Analysis'){
+            sh 'sudo node static_test.js'
+        }
+        stage('Test'){
+            sh 'cd server-side/site && sudo npm test'
+        }
+      }
